@@ -1,0 +1,44 @@
+name: Continuous Integration
+
+on: [push, pull_request]
+
+jobs:
+  build_test_images:
+    runs-on: ubuntu-latest
+    strategy:
+        matrix:
+            baseImage: [alpine, debian]
+            dockerVersion: ['19.03.5', '18.09.9']
+            pythonVersion: ['py37']
+
+    env:
+        IMAGE_NAME: "dockerbuildbot/compose:${{ matrix.baseImage }}"
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v1
+      -
+        name: Build test image
+        run: |
+            echo ::set-env name=STORAGE_DRIVER::$(docker info -f \'{{.Driver}}\')
+            docker build -t ${IMAGE_NAME} \
+                         --target build \
+                         --build-arg BUILD_PLATFORM="${{ matrix.baseImage }}" \
+                         --build-arg GIT_COMMIT="${{ env.GITHUB_SHA }}" .
+      -
+        name: Run tests
+        run: |
+            docker run \
+                -t \
+                --rm \
+                --privileged \
+                --volume ${GITHUB_WORKSPACE}/.git:/code/.git \
+                --volume /var/run/docker.sock:/var/run/docker.sock \
+                -e TAG=${IMAGE_NAME} \
+                -e STORAGE_DRIVER \
+                -e DOCKER_VERSIONS=${{ matrix.dockerVersion }} \
+                -e BUILD_NUMBER=0 \
+                -e PY_TEST_VERSIONS=${{ matrix.pythonVersion }} \
+                --entrypoint "script/test/ci" \
+                ${IMAGE_NAME} \
+                --verbose
