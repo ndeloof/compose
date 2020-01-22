@@ -6,29 +6,26 @@
 #
 #        http://git-scm.com/download/win
 #
-# 2. Install Python 3.7.2:
-#
-#        https://www.python.org/downloads/
-#
-# 3. Append ";C:\Python37;C:\Python37\Scripts" to the "Path" environment variable:
-#
-#        https://www.microsoft.com/resources/documentation/windows/xp/all/proddocs/en-us/sysdm_advancd_environmnt_addchange_variable.mspx?mfr=true
-#
-# 4. In Powershell, run the following commands:
-#
-#        $ pip install 'virtualenv==16.2.0'
-#        $ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
-#
-# 5. Clone the repository:
+# 2. Clone the repository:
 #
 #        $ git clone https://github.com/docker/compose.git
 #        $ cd compose
 #
-# 6. Build the binary:
+# 3. Build the binary:
 #
 #        .\script\build\windows.ps1
 
 $ErrorActionPreference = "Stop"
+
+Invoke-Expression -Command "python --version" | Tee-Object -Variable python_version
+if ($python_version eq "Python 3.7.6") {
+    Invoke-WebRequest -Uri "https://www.python.org/ftp/python/3.7.6/python-3.7.6-embed-amd64.zip" -OutFile "C:\temp\python.zip"
+    Expand-Archive -LiteralPath C:\temp\python.zip -DestinationPath C:\temp\python InvoicesUnzipped
+    Set-Item -Path Env:Path -Value ("C:\temp\python;" + $Env:Path)
+}
+
+pip install 'virtualenv==16.7.9'
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 
 # Remove virtualenv
 if (Test-Path venv) {
