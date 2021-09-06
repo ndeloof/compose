@@ -4,10 +4,24 @@ Docker Compose
 
 ![Docker Compose](logo.png?raw=true "Docker Compose Logo")
 
-| ** Compose V2 is on his way! :star_struck: ** |
-| --- |
-| We are currently polishing the next generation of Docker Compose, to be released soon... :stopwatch: <br> - Read more on [RC1 announcement](https://www.docker.com/blog/start-dev-environments-locally-compose-v2-rc-1-and-more-in-docker-desktop-3-6/). <br> - Check the [v2 branch](https://github.com/docker/compose/tree/v2) on this repo. |
+** Compose V2 is on its way! :star_struck: **
+---------------------------------------------
 
+We are currently polishing the next generation of Docker Compose, to be released soon... :stopwatch: 
+- Read more on [RC1 announcement](https://www.docker.com/blog/start-dev-environments-locally-compose-v2-rc-1-and-more-in-docker-desktop-3-6/). 
+- Check the [v2 branch](https://github.com/docker/compose/tree/v2) on this repo.
+
+
+End of Life policy :hourglass_flowing_sand:
+-------------------------------------------
+
+- :lock_with_ink_pen: As of September 28th, 2021 new features and bug fixes will only be considered in the V2 codebase. Docker Compose v1 (this branch) will only be maintained regarding security issues.
+- :closed_lock_with_key: On December 28th, 2021 Docker Compose v1 will be marked as `deprecated`.
+- :lock: By March 28th, 2022 No new contribution will be accepted to the V1 branch, even for security fixes.
+
+
+About
+-----
 
 Docker Compose is a tool for running multi-container applications on Docker
 defined using the [Compose file format](https://compose-spec.io).
