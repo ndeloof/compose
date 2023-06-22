@@ -211,43 +211,6 @@ jobs:
         with:
           paths: /tmp/report/report.xml       
         if: always()
-  coverage:
-    runs-on: ubuntu-22.04
-    needs:
-      - test
-      - e2e
-    steps:
-      # codecov won't process the report without the source code available
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version-file: 'go.mod'
-          check-latest: true
-      - name: Download unit test coverage
-        uses: actions/download-artifact@v3
-        with:
-          name: coverage-data-unit
-          path: coverage/unit
-      - name: Download E2E test coverage
-        uses: actions/download-artifact@v3
-        with:
-          name: coverage-data-e2e
-          path: coverage/e2e
-      - name: Merge coverage reports
-        run: |
-          go tool covdata textfmt -i=./coverage/unit,./coverage/e2e -o ./coverage.txt
-      - name: Store coverage report in GitHub Actions
-        uses: actions/upload-artifact@v3
-        with:
-          name: go-covdata-txt
-          path: ./coverage.txt
-          if-no-files-found: error
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          files: ./coverage.txt
 
   release:
     permissions:
