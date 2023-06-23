@@ -46,6 +46,8 @@ target "_common" {
     BUILD_TAGS = BUILD_TAGS
     BUILDKIT_CONTEXT_KEEP_GIT_DIR = 1
   }
+  # GITHUB_TOKEN is the token used to retrieve private Go modules
+  secret = ["id=GITHUB_TOKEN,env=GITHUB_TOKEN"]
 }
 
 group "default" {
@@ -63,6 +65,7 @@ target "lint" {
 }
 
 target "license-validate" {
+  inherits = ["_common"]
   target = "license-validate"
   output = ["type=cacheonly"]
 }

@@ -23,6 +23,7 @@ import (
 
 	"github.com/docker/buildx/build"
 	"github.com/docker/buildx/builder"
+	_ "github.com/docker/buildx/driver/cloud"            //nolint:blank-imports
 	_ "github.com/docker/buildx/driver/docker"           //nolint:blank-imports
 	_ "github.com/docker/buildx/driver/docker-container" //nolint:blank-imports
 	_ "github.com/docker/buildx/driver/kubernetes"       //nolint:blank-imports

@@ -58,6 +58,11 @@ require (
 )
 
 require (
+	github.com/fatih/color v1.16.0 // indirect
+	github.com/hashicorp/go-retryablehttp v0.7.5 // indirect
+)
+
+require (
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
@@ -119,7 +124,7 @@ require (
 	github.com/klauspost/compress v1.17.4 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.17 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b // indirect
@@ -193,3 +198,7 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 	tags.cncf.io/container-device-interface v0.6.2 // indirect
 )
+
+replace github.com/docker/buildx => github.com/docker/buildx-private v0.13.1-desktop.1
+
+replace github.com/moby/buildkit => github.com/docker/buildkit-private v0.13.1-cloud.1

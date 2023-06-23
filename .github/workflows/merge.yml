@@ -24,6 +24,13 @@ jobs:
       digest: ${{ fromJSON(steps.bake.outputs.metadata).image-cross['containerimage.digest'] }}
     steps:
       -
+        name: GitHub auth token from GitHub App
+        id: docker-read-app
+        uses: tibdex/github-app-token@b62528385c34dbc9f38e5f4225ac829252d1ea92 # v1.8.0
+        with:
+          app_id: ${{ vars.DOCKER_READ_APP_ID }}
+          private_key: ${{ secrets.DOCKER_READ_APP_PRIVATE_KEY }}
+      -
         name: Checkout
         uses: actions/checkout@v3
       -
@@ -60,9 +67,11 @@ jobs:
             ${{ steps.meta.outputs.bake-file }}
           targets: image-cross
           push: ${{ github.event_name != 'pull_request' }}
+          # NOTE(milas): temporarily disable caching to prevent deps auth issues
+          # *.cache-from=type=gha,scope=bin-image
+          # *.cache-to=type=gha,scope=bin-image,mode=max
           set: |
-            *.cache-from=type=gha,scope=bin-image
-            *.cache-to=type=gha,scope=bin-image,mode=max
             *.attest=type=sbom
             *.attest=type=provenance,mode=max,builder-id=https://github.com/${{ env.GITHUB_REPOSITORY }}/actions/runs/${{ env.GITHUB_RUN_ID }}
-
+        env:
+          GITHUB_TOKEN: ${{ steps.docker-read-app.outputs.token }}

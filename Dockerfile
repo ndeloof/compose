@@ -41,17 +41,42 @@ RUN apk add --no-cache \
       file \
       findutils \
       git \
+      openssh-client \
       make \
       protoc \
       protobuf-dev
+RUN mkdir -p -m 0700 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+# setup private repositories access token
+
 WORKDIR /src
 ENV CGO_ENABLED=0
+ENV GOPRIVATE="github.com/docker/*"
 
 FROM base AS build-base
 COPY go.* .
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=secret,id=GITHUB_TOKEN \
+    --mount=type=ssh <<EOT
+  set -e
+  GITHUB_TOKEN=$(cat /run/secrets/GITHUB_TOKEN)
+  if [ -n "$GITHUB_TOKEN" ]; then
+    echo "Setting GitHub access token"
+    git config --global "url.https://x-access-token:${GITHUB_TOKEN}@github.com.insteadof" "https://github.com"
+  else
+    echo "Setting Git SSH protocol"
+    git config --global url."git@github.com:".insteadOf "https://github.com/"
+    (
+      set +e
+      ssh -T git@github.com
+      if [ ! "$?" = "1" ]; then
+        echo "No GitHub SSH key loaded exiting..."
+        exit 1
+      fi
+    )
+  fi
     go mod download
+EOT
 
 FROM build-base AS vendored
 RUN --mount=type=bind,target=.,rw \
@@ -133,7 +158,7 @@ RUN --mount=type=bind,target=. \
     --mount=from=addlicense,source=/app/addlicense,target=/usr/bin/addlicense \
     find . -regex "${LICENSE_FILES}" | xargs addlicense -check -c 'Docker Compose CLI' -l apache -ignore validate -ignore testdata -ignore resolvepath -v
 
-FROM base AS docsgen
+FROM build-base AS docsgen
 WORKDIR /src
 RUN --mount=target=. \
     --mount=target=/root/.cache,type=cache \
