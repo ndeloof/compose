@@ -78,6 +78,10 @@ func CreatingEvent(id string) Event {
 	return NewEvent(id, Working, "Creating")
 }
 
+func PreStartEvent(id string) Event {
+	return NewEvent(id, Working, "Pre-Start")
+}
+
 // StartingEvent creates a new Starting in progress Event
 func StartingEvent(id string) Event {
 	return NewEvent(id, Working, "Starting")

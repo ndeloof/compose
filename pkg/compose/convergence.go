@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mitchellh/mapstructure"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -737,6 +738,10 @@ func (s *composeService) isServiceCompleted(ctx context.Context, containers Cont
 	return false, 0, nil
 }
 
+type ServiceHooks struct {
+	PreStart *types.ServiceConfig `mapstructure:"pre_start"`
+}
+
 func (s *composeService) startService(ctx context.Context, project *types.Project, service types.ServiceConfig, containers Containers) error {
 	if service.Deploy != nil && service.Deploy.Replicas != nil && *service.Deploy.Replicas == 0 {
 		return nil
@@ -760,6 +765,44 @@ func (s *composeService) startService(ctx context.Context, project *types.Projec
 			continue
 		}
 		eventName := getContainerProgressName(container)
+
+		if x, ok := service.Extensions["x-hooks"]; ok {
+			var hooks ServiceHooks
+			err := mapstructure.Decode(x, &hooks)
+			if err != nil {
+				return err
+			}
+			if hooks.PreStart != nil {
+				name := getCanonicalContainerName(container)
+				hooks.PreStart.VolumesFrom = append(hooks.PreStart.VolumesFrom, container.ID)
+				cc, err := s.createContainer(ctx, project, *hooks.PreStart, fmt.Sprintf("%s-pre-start", name), 0, createOptions{
+					AutoRemove: true,
+					Labels: map[string]string{
+						api.ProjectLabel: project.Name,
+						api.ServiceLabel: service.Name,
+						api.VersionLabel: api.ComposeVersion,
+					},
+				})
+				if err != nil {
+					return err
+				}
+				w.Event(progress.PreStartEvent(eventName))
+				err = s.apiClient().ContainerStart(ctx, cc.ID, containerType.StartOptions{})
+				if err != nil {
+					return err
+				}
+				waitC, errC := s.apiClient().ContainerWait(ctx, cc.ID, containerType.WaitConditionNextExit)
+				select {
+				case err := <-errC:
+					return err
+				case resp := <-waitC:
+					if resp.StatusCode != 0 {
+						return fmt.Errorf("pre-start hook failed with status code %d", resp.StatusCode)
+					}
+				}
+			}
+		}
+
 		w.Event(progress.StartingEvent(eventName))
 		err := s.apiClient().ContainerStart(ctx, container.ID, containerType.StartOptions{})
 		if err != nil {
