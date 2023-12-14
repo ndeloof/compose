@@ -20,13 +20,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/mitchellh/mapstructure"
+	"github.com/compose-spec/compose-go/v2/loader"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -739,7 +740,7 @@ func (s *composeService) isServiceCompleted(ctx context.Context, containers Cont
 }
 
 type ServiceHooks struct {
-	PreStart *types.ServiceConfig `mapstructure:"pre_start"`
+	PreStart *types.ServiceConfig `yaml:"pre_start"`
 }
 
 func (s *composeService) startService(ctx context.Context, project *types.Project, service types.ServiceConfig, containers Containers) error {
@@ -768,37 +769,16 @@ func (s *composeService) startService(ctx context.Context, project *types.Projec
 
 		if x, ok := service.Extensions["x-hooks"]; ok {
 			var hooks ServiceHooks
-			err := mapstructure.Decode(x, &hooks)
+			err = loader.Transform(x, &hooks)
 			if err != nil {
 				return err
 			}
 			if hooks.PreStart != nil {
-				name := getCanonicalContainerName(container)
+				name := fmt.Sprintf("%s-pre-start", getCanonicalContainerName(container))
 				hooks.PreStart.VolumesFrom = append(hooks.PreStart.VolumesFrom, container.ID)
-				cc, err := s.createContainer(ctx, project, *hooks.PreStart, fmt.Sprintf("%s-pre-start", name), 0, createOptions{
-					AutoRemove: true,
-					Labels: map[string]string{
-						api.ProjectLabel: project.Name,
-						api.ServiceLabel: service.Name,
-						api.VersionLabel: api.ComposeVersion,
-					},
-				})
+				err = s.runHook(ctx, project, service, *hooks.PreStart, name, w, eventName)
 				if err != nil {
 					return err
-				}
-				w.Event(progress.PreStartEvent(eventName))
-				err = s.apiClient().ContainerStart(ctx, cc.ID, containerType.StartOptions{})
-				if err != nil {
-					return err
-				}
-				waitC, errC := s.apiClient().ContainerWait(ctx, cc.ID, containerType.WaitConditionNextExit)
-				select {
-				case err := <-errC:
-					return err
-				case resp := <-waitC:
-					if resp.StatusCode != 0 {
-						return fmt.Errorf("pre-start hook failed with status code %d", resp.StatusCode)
-					}
 				}
 			}
 		}
@@ -809,6 +789,45 @@ func (s *composeService) startService(ctx context.Context, project *types.Projec
 			return err
 		}
 		w.Event(progress.StartedEvent(eventName))
+	}
+	return nil
+}
+
+func (s *composeService) runHook(ctx context.Context, project *types.Project, service types.ServiceConfig, hook types.ServiceConfig, name string, w progress.Writer, eventName string) error {
+	if hook.Image == "" {
+		var args []string
+		if len(hook.Command) > 1 {
+			args = hook.Command[1:]
+		}
+		cmd := exec.CommandContext(ctx, hook.Command[0], args...)
+		cmd.Stdout = s.dockerCli.Out()
+		cmd.Stderr = s.dockerCli.Err()
+		return cmd.Run()
+	}
+	cc, err := s.createContainer(ctx, project, hook, name, 0, createOptions{
+		AutoRemove: true,
+		Labels: map[string]string{
+			api.ProjectLabel: project.Name,
+			api.ServiceLabel: service.Name,
+			api.VersionLabel: api.ComposeVersion,
+		},
+	})
+	if err != nil {
+		return err
+	}
+	w.Event(progress.PreStartEvent(eventName))
+	err = s.apiClient().ContainerStart(ctx, cc.ID, containerType.StartOptions{})
+	if err != nil {
+		return err
+	}
+	waitC, errC := s.apiClient().ContainerWait(ctx, cc.ID, containerType.WaitConditionNextExit)
+	select {
+	case err := <-errC:
+		return err
+	case resp := <-waitC:
+		if resp.StatusCode != 0 {
+			return fmt.Errorf("pre-start hook failed with status code %d", resp.StatusCode)
+		}
 	}
 	return nil
 }
