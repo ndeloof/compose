@@ -55,9 +55,13 @@ func (p *printer) Cancel() {
 func (p *printer) Stop() {
 	if p.stopped.CompareAndSwap(false, true) {
 		// only close if this is the first call to stop
-		close(p.queue)
+		p.queue <- api.ContainerEvent{
+			Type: printerStopEvent,
+		}
 	}
 }
+
+const printerStopEvent = -1
 
 func (p *printer) HandleEvent(event api.ContainerEvent) {
 	// prevent deadlocking, if the printer is done, there's no reader for
@@ -75,6 +79,7 @@ func (p *printer) Run(cascadeStop bool, exitCodeFrom string, stopFn func() error
 		exitCode int
 	)
 	containers := map[string]struct{}{}
+	defer close(p.queue)
 	for event := range p.queue {
 		container, id := event.Container, event.ID
 		switch event.Type {
@@ -125,6 +130,8 @@ func (p *printer) Run(cascadeStop bool, exitCodeFrom string, stopFn func() error
 			if !aborting {
 				p.consumer.Err(container, event.Line)
 			}
+		case printerStopEvent:
+			break
 		}
 	}
 	return exitCode, nil

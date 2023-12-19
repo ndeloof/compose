@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os/exec"
 	"sort"
 	"strconv"
@@ -195,6 +196,24 @@ func (c *convergence) ensureService(ctx context.Context, project *types.Project,
 				UseNetworkAliases: true,
 				Labels:            mergeLabels(service.Labels, service.CustomLabels),
 			}
+
+			if x, ok := service.Extensions["x-hooks"]; ok {
+				var hooks ServiceHooks
+				err = loader.Transform(x, &hooks)
+				if err != nil {
+					return err
+				}
+				if hooks.PreCreate != nil {
+					eventName := fmt.Sprintf("%s-pre-create", name)
+					out, err := c.service.runHook(ctx, project, service, hooks.PreCreate.ServiceConfig, name, progress.ContextWriter(ctx), eventName)
+					if err != nil {
+						return err
+					}
+					out = strings.TrimSpace(out)
+					service.Environment[hooks.PreCreate.SetEnvironment] = &out
+				}
+			}
+
 			container, err := c.service.createContainer(ctx, project, service, name, number, opts)
 			updated[actual+i] = container
 			return err
@@ -740,7 +759,13 @@ func (s *composeService) isServiceCompleted(ctx context.Context, containers Cont
 }
 
 type ServiceHooks struct {
-	PreStart *types.ServiceConfig `yaml:"pre_start"`
+	PreCreate *PreCreateHook       `yaml:"pre_create,omitempty"`
+	PreStart  *types.ServiceConfig `yaml:"pre_start,omitempty"`
+}
+
+type PreCreateHook struct {
+	types.ServiceConfig `yaml:",squash"`
+	SetEnvironment      string `yaml:"set_environment,omitempty"`
 }
 
 func (s *composeService) startService(ctx context.Context, project *types.Project, service types.ServiceConfig, containers Containers) error {
@@ -776,7 +801,7 @@ func (s *composeService) startService(ctx context.Context, project *types.Projec
 			if hooks.PreStart != nil {
 				name := fmt.Sprintf("%s-pre-start", getCanonicalContainerName(container))
 				hooks.PreStart.VolumesFrom = append(hooks.PreStart.VolumesFrom, container.ID)
-				err = s.runHook(ctx, project, service, *hooks.PreStart, name, w, eventName)
+				_, err = s.runHook(ctx, project, service, *hooks.PreStart, name, w, eventName)
 				if err != nil {
 					return err
 				}
@@ -793,16 +818,19 @@ func (s *composeService) startService(ctx context.Context, project *types.Projec
 	return nil
 }
 
-func (s *composeService) runHook(ctx context.Context, project *types.Project, service types.ServiceConfig, hook types.ServiceConfig, name string, w progress.Writer, eventName string) error {
+func (s *composeService) runHook(ctx context.Context, project *types.Project, service types.ServiceConfig, hook types.ServiceConfig, name string, w progress.Writer, eventName string) (string, error) {
 	if hook.Image == "" {
 		var args []string
 		if len(hook.Command) > 1 {
 			args = hook.Command[1:]
 		}
 		cmd := exec.CommandContext(ctx, hook.Command[0], args...)
-		cmd.Stdout = s.dockerCli.Out()
 		cmd.Stderr = s.dockerCli.Err()
-		return cmd.Run()
+		output, err := cmd.Output()
+		if err != nil {
+			return "", err
+		}
+		return string(output), err
 	}
 	cc, err := s.createContainer(ctx, project, hook, name, 0, createOptions{
 		AutoRemove: true,
@@ -813,23 +841,30 @@ func (s *composeService) runHook(ctx context.Context, project *types.Project, se
 		},
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
 	w.Event(progress.PreStartEvent(eventName))
 	err = s.apiClient().ContainerStart(ctx, cc.ID, containerType.StartOptions{})
 	if err != nil {
-		return err
+		return "", err
 	}
 	waitC, errC := s.apiClient().ContainerWait(ctx, cc.ID, containerType.WaitConditionNextExit)
 	select {
 	case err := <-errC:
-		return err
+		return "", err
 	case resp := <-waitC:
 		if resp.StatusCode != 0 {
-			return fmt.Errorf("pre-start hook failed with status code %d", resp.StatusCode)
+			return "", fmt.Errorf("pre-start hook failed with status code %d", resp.StatusCode)
 		}
 	}
-	return nil
+	logs, err := s.apiClient().ContainerLogs(ctx, cc.ID, containerType.LogsOptions{
+		ShowStdout: true,
+	})
+	if err != nil {
+		return "", err
+	}
+	output, err := io.ReadAll(logs)
+	return string(output), err
 }
 
 func mergeLabels(ls ...types.Labels) types.Labels {
