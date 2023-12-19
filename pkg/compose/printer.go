@@ -18,7 +18,7 @@ package compose
 
 import (
 	"fmt"
-	"sync/atomic"
+	"sync"
 
 	"github.com/docker/compose/v2/pkg/api"
 )
@@ -32,9 +32,10 @@ type logPrinter interface {
 }
 
 type printer struct {
+	sync.Mutex
 	queue    chan api.ContainerEvent
 	consumer api.LogConsumer
-	stopped  atomic.Bool
+	stopped  bool
 }
 
 // newLogPrinter builds a LogPrinter passing containers logs to LogConsumer
@@ -53,20 +54,20 @@ func (p *printer) Cancel() {
 }
 
 func (p *printer) Stop() {
-	if p.stopped.CompareAndSwap(false, true) {
-		// only close if this is the first call to stop
-		p.queue <- api.ContainerEvent{
-			Type: printerStopEvent,
-		}
+	p.Lock()
+	defer p.Unlock()
+	if !p.stopped {
+		p.stopped = true
+		close(p.queue)
 	}
 }
-
-const printerStopEvent = -1
 
 func (p *printer) HandleEvent(event api.ContainerEvent) {
 	// prevent deadlocking, if the printer is done, there's no reader for
 	// queue, so this write could block indefinitely
-	if p.stopped.Load() {
+	p.Lock()
+	defer p.Unlock()
+	if p.stopped {
 		return
 	}
 	p.queue <- event
@@ -79,7 +80,6 @@ func (p *printer) Run(cascadeStop bool, exitCodeFrom string, stopFn func() error
 		exitCode int
 	)
 	containers := map[string]struct{}{}
-	defer close(p.queue)
 	for event := range p.queue {
 		container, id := event.Container, event.ID
 		switch event.Type {
@@ -130,8 +130,6 @@ func (p *printer) Run(cascadeStop bool, exitCodeFrom string, stopFn func() error
 			if !aborting {
 				p.consumer.Err(container, event.Line)
 			}
-		case printerStopEvent:
-			break
 		}
 	}
 	return exitCode, nil
