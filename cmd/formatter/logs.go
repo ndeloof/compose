@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/buger/goterm"
 	"github.com/docker/compose/v2/pkg/api"
 	"github.com/docker/docker/pkg/jsonmessage"
 )
@@ -102,10 +103,25 @@ func (l *logConsumer) Err(container, message string) {
 	l.write(l.stderr, container, message)
 }
 
+var navColor = makeColorFunc("90")
+
 func (l *logConsumer) write(w io.Writer, container, message string) {
 	if l.ctx.Err() != nil {
 		return
 	}
+	height := goterm.Height()
+	// hide cursor
+	fmt.Print("\033[?25l")
+	defer fmt.Printf("\033[?25h")
+	// save cursor position
+	fmt.Print("\0337")
+	// Move to last line
+	fmt.Printf("\033[%d;0H", height)
+	// clear line
+	fmt.Print("\033[0K")
+	// restore cursor position
+	fmt.Print("\0338")
+
 	p := l.getPresenter(container)
 	timestamp := time.Now().Format(jsonmessage.RFC3339NanoFixed)
 	for _, line := range strings.Split(message, "\n") {
@@ -115,6 +131,15 @@ func (l *logConsumer) write(w io.Writer, container, message string) {
 			fmt.Fprintf(w, "%s%s\n", p.prefix, line)
 		}
 	}
+
+	// save cursor position
+	fmt.Print("\0337")
+	// Move to last line
+	fmt.Printf("\033[%d;0H", height)
+	// clear line
+	fmt.Print("\033[K" + navColor("  >> [T] toggle timestamp [$] get more features"))
+	// restore cursor position
+	fmt.Print("\0338")
 }
 
 func (l *logConsumer) Status(container, msg string) {
