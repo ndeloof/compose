@@ -80,6 +80,10 @@ func (p *printer) HandleEvent(event api.ContainerEvent) {
 
 //nolint:gocyclo
 func (p *printer) Run(cascadeStop bool, exitCodeFrom string, stopFn func() error) (int, error) {
+	// hide cursor
+	fmt.Print("\033[?25l")
+	defer fmt.Printf("\033[?25h")
+
 	var (
 		aborting bool
 		exitCode int

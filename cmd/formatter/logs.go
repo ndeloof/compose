@@ -110,9 +110,6 @@ func (l *logConsumer) write(w io.Writer, container, message string) {
 		return
 	}
 	height := goterm.Height()
-	// hide cursor
-	fmt.Print("\033[?25l")
-	defer fmt.Printf("\033[?25h")
 	// save cursor position
 	fmt.Print("\0337")
 	// Move to last line
