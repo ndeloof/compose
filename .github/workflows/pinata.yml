@@ -1,0 +1,54 @@
+name: Bump Compose in Docker Desktop
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+jobs:
+  pinata:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate github token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ vars.COMPOSE_BOT_APP_ID }}
+          private-key: ${{ secrets.COMPOSE_BOT_APP_PRIVATE_KEY }}
+          owner: docker
+          repositories: "pinata"
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          repository: docker/pinata
+          ref: main
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Bump version
+        run: |
+          tmpfile=$(mktemp)
+          cp build.json "$tmpfile"
+          jq '."docker-compose".version = ( "${{ github.ref_name }}" | .[1:64])' "$tmpfile" > build.json
+          rm -f "$tmpfile"
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          commit-message: "Bump Compose to ${{ github.ref_name }}"
+          branch: bump-docker-compose-${{ github.ref_name }}
+          title: "Bump Compose to ${{ github.ref_name }}"
+          labels: |
+            release
+            team/compose
+          body: |
+            ### What this PR does
+            Bump [Docker Compose](https://github.com/docker/compose) to ${{ github.ref_name }}.
+            ### Notes for the reviewer:
+            /focus-tests=kubernetes-compose-volume-registry
+            ### Release notes
+            ```release-note
+            - [Docker Compose ${{ github.ref_name }}](https://github.com/docker/compose/releases/tag/${{ github.ref_name }})
+            ```
+
