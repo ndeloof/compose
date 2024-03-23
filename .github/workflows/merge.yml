@@ -32,17 +32,17 @@ jobs:
           private_key: ${{ secrets.DOCKER_READ_APP_PRIVATE_KEY }}
       -
         name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       -
         name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@v3
       -
         name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
       -
         name: Docker meta
         id: meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: |
             ${{ env.REPO_SLUG }}
@@ -53,13 +53,13 @@ jobs:
       -
         name: Login to DockerHub
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERPUBLICBOT_USERNAME }}
           password: ${{ secrets.DOCKERPUBLICBOT_WRITE_PAT }}
       -
         name: Build and push image
-        uses: docker/bake-action@v2
+        uses: docker/bake-action@v4
         id: bake
         with:
           files: |
@@ -67,10 +67,9 @@ jobs:
             ${{ steps.meta.outputs.bake-file }}
           targets: image-cross
           push: ${{ github.event_name != 'pull_request' }}
-          # NOTE(milas): temporarily disable caching to prevent deps auth issues
-          # *.cache-from=type=gha,scope=bin-image
-          # *.cache-to=type=gha,scope=bin-image,mode=max
           set: |
+            *.cache-from=type=gha,scope=bin-image
+            *.cache-to=type=gha,scope=bin-image,mode=max
             *.attest=type=sbom
             *.attest=type=provenance,mode=max,builder-id=https://github.com/${{ env.GITHUB_REPOSITORY }}/actions/runs/${{ env.GITHUB_RUN_ID }}
         env:
