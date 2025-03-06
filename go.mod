@@ -1,8 +1,7 @@
 module github.com/docker/compose/v2
 
 go 1.21.0
-
-toolchain go1.22.2
+toolchain go1.22.5
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
@@ -22,7 +21,7 @@ require (
 	github.com/docker/go-units v0.5.0
 	github.com/eiannone/keyboard v0.0.0-20220611211555-0d226195f203
 	github.com/fsnotify/fsevents v0.2.0
-	github.com/google/go-cmp v0.6.0
+	github.com/google/go-cmp v0.7.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-version v1.7.0
 	github.com/jonboulle/clockwork v0.4.0
@@ -41,16 +40,16 @@ require (
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/theupdateframework/notary v0.7.0
 	github.com/tilt-dev/fsnotify v1.4.8-0.20220602155310-fff9c274a375
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.46.1
-	go.opentelemetry.io/otel v1.21.0
+	go.opentelemetry.io/otel v1.35.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.21.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.21.0
-	go.opentelemetry.io/otel/metric v1.21.0
+	go.opentelemetry.io/otel/metric v1.35.0
 	go.opentelemetry.io/otel/sdk v1.21.0
-	go.opentelemetry.io/otel/trace v1.21.0
+	go.opentelemetry.io/otel/trace v1.35.0
 	go.uber.org/goleak v1.3.0
 	go.uber.org/mock v0.4.0
 	golang.org/x/exp v0.0.0-20240112132812-db7319d0e0e3
@@ -97,7 +96,7 @@ require (
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fvbommel/sortorder v1.0.2 // indirect
-	github.com/go-logr/logr v1.4.1 // indirect
+	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.19.6 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
@@ -162,6 +161,7 @@ require (
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
+	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.46.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.46.1 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric v0.42.0 // indirect
