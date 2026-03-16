@@ -21,8 +21,11 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/compose-spec/compose-go/v2/types"
+	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
 
 	"github.com/docker/compose/v5/pkg/api"
@@ -108,4 +111,74 @@ func getDependencyCondition(service types.ServiceConfig, project *types.Project)
 		}
 	}
 	return ServiceConditionRunningOrHealthy
+}
+
+// force sequential calls to ContainerStart to prevent race condition in engine assigning ports from ranges
+var startMx sync.Mutex
+
+func (s *composeService) startContainer(ctx context.Context, ctr container.Summary) error {
+	s.events.On(newEvent(getContainerProgressName(ctr), api.Working, "Restart"))
+	startMx.Lock()
+	defer startMx.Unlock()
+	_, err := s.apiClient().ContainerStart(ctx, ctr.ID, client.ContainerStartOptions{})
+	if err != nil {
+		return err
+	}
+	s.events.On(newEvent(getContainerProgressName(ctr), api.Done, "Restarted"))
+	return nil
+}
+
+func (s *composeService) startService(ctx context.Context,
+	project *types.Project, service types.ServiceConfig,
+	containers Containers, listener api.ContainerEventListener,
+	timeout time.Duration,
+) error {
+	if service.Deploy != nil && service.Deploy.Replicas != nil && *service.Deploy.Replicas == 0 {
+		return nil
+	}
+
+	err := s.waitDependencies(ctx, project, service.Name, service.DependsOn, containers, timeout)
+	if err != nil {
+		return err
+	}
+
+	if len(containers) == 0 {
+		if service.GetScale() == 0 {
+			return nil
+		}
+		return fmt.Errorf("service %q has no container to start", service.Name)
+	}
+
+	for _, ctr := range containers.filter(isService(service.Name)) {
+		if ctr.State == container.StateRunning {
+			continue
+		}
+
+		err = s.injectSecrets(ctx, project, service, ctr.ID)
+		if err != nil {
+			return err
+		}
+
+		err = s.injectConfigs(ctx, project, service, ctr.ID)
+		if err != nil {
+			return err
+		}
+
+		eventName := getContainerProgressName(ctr)
+		s.events.On(startingEvent(eventName))
+		_, err = s.apiClient().ContainerStart(ctx, ctr.ID, client.ContainerStartOptions{})
+		if err != nil {
+			return err
+		}
+
+		for _, hook := range service.PostStart {
+			err = s.runHook(ctx, ctr, service, hook, listener)
+			if err != nil {
+				return err
+			}
+		}
+
+		s.events.On(startedEvent(eventName))
+	}
+	return nil
 }

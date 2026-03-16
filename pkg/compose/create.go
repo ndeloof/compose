@@ -22,7 +22,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
+	"time"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -33,16 +35,19 @@ import (
 	"github.com/compose-spec/compose-go/v2/paths"
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/containerd/errdefs"
+	"github.com/containerd/platforms"
 	"github.com/moby/moby/api/types/blkiodev"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/mount"
 	"github.com/moby/moby/api/types/network"
 	"github.com/moby/moby/client"
 	"github.com/moby/moby/client/pkg/versions"
+	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/sirupsen/logrus"
 	cdi "tags.cncf.io/container-device-interface/pkg/parser"
 
 	"github.com/docker/compose/v5/pkg/api"
+	"github.com/docker/compose/v5/pkg/utils"
 )
 
 type createOptions struct {
@@ -1752,4 +1757,253 @@ func parseMACAddr(macAddress string) (network.HardwareAddr, error) {
 		return nil, fmt.Errorf("invalid MAC address: %w", err)
 	}
 	return network.HardwareAddr(m), nil
+}
+
+const (
+	doubledContainerNameWarning = "WARNING: The %q service is using the custom container name %q. " +
+		"Docker requires each container to have a unique name. " +
+		"Remove the custom name to scale the service"
+)
+
+func getScale(config types.ServiceConfig) (int, error) {
+	scale := config.GetScale()
+	if scale > 1 && config.ContainerName != "" {
+		return 0, fmt.Errorf(doubledContainerNameWarning,
+			config.Name,
+			config.ContainerName)
+	}
+	return scale, nil
+}
+
+func getContainerName(projectName string, service types.ServiceConfig, number int) string {
+	name := getDefaultContainerName(projectName, service.Name, strconv.Itoa(number))
+	if service.ContainerName != "" {
+		name = service.ContainerName
+	}
+	return name
+}
+
+func getDefaultContainerName(projectName, serviceName, index string) string {
+	return strings.Join([]string{projectName, serviceName, index}, api.Separator)
+}
+
+func nextContainerNumber(containers []container.Summary) int {
+	maxNumber := 0
+	for _, c := range containers {
+		s, ok := c.Labels[api.ContainerNumberLabel]
+		if !ok {
+			logrus.Warnf("container %s is missing %s label", c.ID, api.ContainerNumberLabel)
+		}
+		n, err := strconv.Atoi(s)
+		if err != nil {
+			logrus.Warnf("container %s has invalid %s label: %s", c.ID, api.ContainerNumberLabel, s)
+			continue
+		}
+		if n > maxNumber {
+			maxNumber = n
+		}
+	}
+	return maxNumber + 1
+}
+
+func mergeLabels(ls ...types.Labels) types.Labels {
+	merged := types.Labels{}
+	for _, l := range ls {
+		maps.Copy(merged, l)
+	}
+	return merged
+}
+
+func (s *composeService) createContainer(ctx context.Context, project *types.Project, service types.ServiceConfig,
+	name string, number int, opts createOptions,
+) (ctr container.Summary, err error) {
+	eventName := "Container " + name
+	s.events.On(creatingEvent(eventName))
+	ctr, err = s.createMobyContainer(ctx, project, service, name, number, nil, opts)
+	if err != nil {
+		if ctx.Err() == nil {
+			s.events.On(api.Resource{
+				ID:     eventName,
+				Status: api.Error,
+				Text:   err.Error(),
+			})
+		}
+		return ctr, err
+	}
+	s.events.On(createdEvent(eventName))
+	return ctr, nil
+}
+
+func (s *composeService) recreateContainer(ctx context.Context, project *types.Project, service types.ServiceConfig,
+	replaced container.Summary, inherit bool, timeout *time.Duration,
+) (created container.Summary, err error) {
+	eventName := getContainerProgressName(replaced)
+	s.events.On(newEvent(eventName, api.Working, "Recreate"))
+	defer func() {
+		if err != nil && ctx.Err() == nil {
+			s.events.On(api.Resource{
+				ID:     eventName,
+				Status: api.Error,
+				Text:   err.Error(),
+			})
+		}
+	}()
+
+	number, err := strconv.Atoi(replaced.Labels[api.ContainerNumberLabel])
+	if err != nil {
+		return created, err
+	}
+
+	var inherited *container.Summary
+	if inherit {
+		inherited = &replaced
+	}
+
+	replacedContainerName := service.ContainerName
+	if replacedContainerName == "" {
+		replacedContainerName = service.Name + api.Separator + strconv.Itoa(number)
+	}
+	name := getContainerName(project.Name, service, number)
+	tmpName := fmt.Sprintf("%s_%s", replaced.ID[:12], name)
+	opts := createOptions{
+		AutoRemove:        false,
+		AttachStdin:       false,
+		UseNetworkAliases: true,
+		Labels:            mergeLabels(service.Labels, service.CustomLabels).Add(api.ContainerReplaceLabel, replacedContainerName),
+	}
+	created, err = s.createMobyContainer(ctx, project, service, tmpName, number, inherited, opts)
+	if err != nil {
+		return created, err
+	}
+
+	timeoutInSecond := utils.DurationSecondToInt(timeout)
+	_, err = s.apiClient().ContainerStop(ctx, replaced.ID, client.ContainerStopOptions{Timeout: timeoutInSecond})
+	if err != nil {
+		return created, err
+	}
+
+	_, err = s.apiClient().ContainerRemove(ctx, replaced.ID, client.ContainerRemoveOptions{})
+	if err != nil {
+		return created, err
+	}
+
+	_, err = s.apiClient().ContainerRename(ctx, tmpName, client.ContainerRenameOptions{
+		NewName: name,
+	})
+	if err != nil {
+		return created, err
+	}
+
+	s.events.On(newEvent(eventName, api.Done, "Recreated"))
+	return created, err
+}
+
+func (s *composeService) createMobyContainer(ctx context.Context, project *types.Project, service types.ServiceConfig,
+	name string, number int, inherit *container.Summary, opts createOptions,
+) (container.Summary, error) {
+	var created container.Summary
+	cfgs, err := s.getCreateConfigs(ctx, project, service, number, inherit, opts)
+	if err != nil {
+		return created, err
+	}
+	platform := service.Platform
+	if platform == "" {
+		platform = project.Environment["DOCKER_DEFAULT_PLATFORM"]
+	}
+	var plat *specs.Platform
+	if platform != "" {
+		var p specs.Platform
+		p, err = platforms.Parse(platform)
+		if err != nil {
+			return created, err
+		}
+		plat = &p
+	}
+
+	response, err := s.apiClient().ContainerCreate(ctx, client.ContainerCreateOptions{
+		Name:             name,
+		Platform:         plat,
+		Config:           cfgs.Container,
+		HostConfig:       cfgs.Host,
+		NetworkingConfig: cfgs.Network,
+	})
+	if err != nil {
+		return created, err
+	}
+	for _, warning := range response.Warnings {
+		s.events.On(api.Resource{
+			ID:     service.Name,
+			Status: api.Warning,
+			Text:   warning,
+		})
+	}
+	res, err := s.apiClient().ContainerInspect(ctx, response.ID, client.ContainerInspectOptions{})
+	if err != nil {
+		return created, err
+	}
+	created = container.Summary{
+		ID:     res.Container.ID,
+		Labels: res.Container.Config.Labels,
+		Names:  []string{res.Container.Name},
+		NetworkSettings: &container.NetworkSettingsSummary{
+			Networks: res.Container.NetworkSettings.Networks,
+		},
+	}
+
+	return created, nil
+}
+
+// getLinks mimics V1 compose/service.py::Service::_get_links()
+func (s *composeService) getLinks(ctx context.Context, projectName string, service types.ServiceConfig, number int) ([]string, error) {
+	var links []string
+	format := func(k, v string) string {
+		return fmt.Sprintf("%s:%s", k, v)
+	}
+	getServiceContainers := func(serviceName string) (Containers, error) {
+		return s.getContainers(ctx, projectName, oneOffExclude, true, serviceName)
+	}
+
+	for _, rawLink := range service.Links {
+		// linkName if informed like in: "serviceName[:linkName]"
+		linkServiceName, linkName, ok := strings.Cut(rawLink, ":")
+		if !ok {
+			linkName = linkServiceName
+		}
+		cnts, err := getServiceContainers(linkServiceName)
+		if err != nil {
+			return nil, err
+		}
+		for _, c := range cnts {
+			containerName := getCanonicalContainerName(c)
+			links = append(links,
+				format(containerName, linkName),
+				format(containerName, linkServiceName+api.Separator+strconv.Itoa(number)),
+				format(containerName, strings.Join([]string{projectName, linkServiceName, strconv.Itoa(number)}, api.Separator)),
+			)
+		}
+	}
+
+	if service.Labels[api.OneoffLabel] == "True" {
+		cnts, err := getServiceContainers(service.Name)
+		if err != nil {
+			return nil, err
+		}
+		for _, c := range cnts {
+			containerName := getCanonicalContainerName(c)
+			links = append(links,
+				format(containerName, service.Name),
+				format(containerName, strings.TrimPrefix(containerName, projectName+api.Separator)),
+				format(containerName, containerName),
+			)
+		}
+	}
+
+	for _, rawExtLink := range service.ExternalLinks {
+		externalLink, linkName, ok := strings.Cut(rawExtLink, ":")
+		if !ok {
+			linkName = externalLink
+		}
+		links = append(links, format(externalLink, linkName))
+	}
+	return links, nil
 }
