@@ -12,7 +12,7 @@ require (
 	github.com/containerd/console v1.0.5
 	github.com/containerd/containerd/v2 v2.2.1
 	github.com/containerd/errdefs v1.0.0
-	github.com/containerd/platforms v1.0.0-rc.2
+	github.com/containerd/platforms v1.0.0-rc.4
 	github.com/distribution/reference v0.6.0
 	github.com/docker/buildx v0.30.1
 	github.com/docker/cli v28.5.2+incompatible
