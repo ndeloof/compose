@@ -8,7 +8,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
 	github.com/buger/goterm v1.0.4
-	github.com/compose-spec/compose-go/v2 v2.10.1
+	github.com/compose-spec/compose-go/v2 v2.11.0
 	github.com/containerd/console v1.0.5
 	github.com/containerd/containerd/v2 v2.2.1
 	github.com/containerd/errdefs v1.0.0
@@ -52,7 +52,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.38.0
 	go.uber.org/goleak v1.3.0
 	go.uber.org/mock v0.6.0
-	go.yaml.in/yaml/v4 v4.0.0-rc.3
+	go.yaml.in/yaml/v4 v4.0.0-rc.4
 	golang.org/x/sync v0.19.0
 	golang.org/x/sys v0.40.0
 	google.golang.org/grpc v1.78.0
