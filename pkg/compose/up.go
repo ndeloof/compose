@@ -45,9 +45,22 @@ func (s *composeService) Up(ctx context.Context, project *types.Project, options
 	err := Run(ctx, tracing.SpanWrapFunc("project/up", tracing.ProjectOptions(ctx, project), func(ctx context.Context) error {
 		// PoC: services with isolation:sandbox run in a Docker Sandbox, the
 		// engine only sees the remaining services
-		project, err := s.prepareSandboxServices(ctx, project)
+		project, err := s.prepareSandboxServices(ctx, project, options.Create.Build, options.Create.QuietPull)
 		if err != nil {
 			return err
+		}
+		// The sandboxed services' images were handled by prepareSandboxServices;
+		// keep the engine-side build scoped to the remaining services. An empty
+		// selection means "build everything", so drop the build entirely when
+		// only sandboxed services were requested.
+		if b := options.Create.Build; b != nil && len(b.Services) > 0 {
+			b.Services = slices.DeleteFunc(slices.Clone(b.Services), func(name string) bool {
+				_, disabled := project.DisabledServices[name]
+				return disabled
+			})
+			if len(b.Services) == 0 {
+				options.Create.Build = nil
+			}
 		}
 		err = s.create(ctx, project, options.Create)
 		if err != nil {

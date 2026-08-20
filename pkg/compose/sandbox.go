@@ -77,13 +77,36 @@ func sandboxNameFor(projectName, serviceName string) string {
 // Sandbox and returns the project narrowed to the engine-bound services, with
 // extra_hosts entries injected so the sandboxed services stay reachable under
 // their compose service name.
-func (s *composeService) prepareSandboxServices(ctx context.Context, project *types.Project) (*types.Project, error) {
+func (s *composeService) prepareSandboxServices(ctx context.Context, project *types.Project, buildOpts *api.BuildOptions, quietPull bool) (*types.Project, error) {
 	sandboxed := sandboxServices(project)
 	if len(sandboxed) == 0 {
 		return project, nil
 	}
 	if _, err := exec.LookPath("sbx"); err != nil {
 		return nil, fmt.Errorf("service with isolation %q requires the sbx CLI (Docker Sandboxes): %w", SandboxIsolation, err)
+	}
+
+	// Sandboxed services are removed from the project the engine converges,
+	// so their images must be built/pulled here, before the sandbox is
+	// created from them — or `up --build` would load a stale image.
+	sandboxNames := make([]string, 0, len(sandboxed))
+	for _, service := range sandboxed {
+		sandboxNames = append(sandboxNames, service.Name)
+	}
+	imagesProject, err := project.WithSelectedServices(sandboxNames, types.IgnoreDependencies)
+	if err != nil {
+		return nil, err
+	}
+	if buildOpts != nil {
+		// restrict the build to the sandboxed services: BuildOptions.Services
+		// would otherwise re-enable the engine-bound services on this narrowed
+		// project and build everything twice
+		scoped := *buildOpts
+		scoped.Services = sandboxNames
+		buildOpts = &scoped
+	}
+	if err := s.ensureImagesExists(ctx, imagesProject, buildOpts, quietPull); err != nil {
+		return nil, err
 	}
 
 	names := make([]string, 0, len(sandboxed))
