@@ -289,7 +289,7 @@ func (s *composeService) sandboxExists(ctx context.Context, name string) bool {
 
 // sandboxStatus reports whether a sandbox exists and is running.
 func (s *composeService) sandboxStatus(ctx context.Context, name string) (bool, bool) {
-	out, err := exec.CommandContext(ctx, "sbx", "ls", "--json").Output()
+	out, err := sbxCommand(ctx, "ls", "--json").Output()
 	if err != nil {
 		return false, false
 	}
@@ -334,10 +334,23 @@ func (s *composeService) loadSandboxImage(ctx context.Context, image string) err
 	return runSbx(ctx, "template", "load", tar.Name())
 }
 
+// sbxCommand builds an sbx invocation with a cleaned environment: compose
+// runs as a docker CLI plugin, and the DOCKER_CLI_PLUGIN_* variables docker
+// sets would make sbx — itself built on the docker/cli plugin framework —
+// misdetect plugin mode and expose the deprecated `docker sandbox` surface
+// instead of its own CLI.
+func sbxCommand(ctx context.Context, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, "sbx", args...)
+	cmd.Env = slices.DeleteFunc(os.Environ(), func(kv string) bool {
+		return strings.HasPrefix(kv, "DOCKER_CLI_PLUGIN")
+	})
+	return cmd
+}
+
 // runSbx runs an sbx CLI command, surfacing its output on failure.
 func runSbx(ctx context.Context, args ...string) error {
 	logrus.Debugf("running: sbx %s", strings.Join(args, " "))
-	cmd := exec.CommandContext(ctx, "sbx", args...)
+	cmd := sbxCommand(ctx, args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("sbx %s: %w\n%s", strings.Join(args, " "), err, out)
@@ -374,7 +387,7 @@ func (s *composeService) sandboxExec(ctx context.Context, name string, options a
 	args = append(args, options.Command...)
 
 	logrus.Debugf("forwarding exec to: sbx %s", strings.Join(args, " "))
-	cmd := exec.CommandContext(ctx, "sbx", args...)
+	cmd := sbxCommand(ctx, args...)
 	// hand the real terminal file descriptors over so interactive TTY
 	// sessions (raw mode, resize) work as with a plain sbx exec
 	cmd.Stdin = os.Stdin
@@ -398,7 +411,7 @@ func (s *composeService) sandboxSummaries(ctx context.Context, projectName strin
 	if _, err := exec.LookPath("sbx"); err != nil {
 		return nil
 	}
-	out, err := exec.CommandContext(ctx, "sbx", "ls", "--json").Output()
+	out, err := sbxCommand(ctx, "ls", "--json").Output()
 	if err != nil {
 		return nil
 	}
@@ -447,7 +460,7 @@ func (s *composeService) sandboxSummaries(ctx context.Context, projectName strin
 
 // sandboxPublishers reports a sandbox's published ports.
 func (s *composeService) sandboxPublishers(ctx context.Context, name string) api.PortPublishers {
-	out, err := exec.CommandContext(ctx, "sbx", "ports", name, "--json").Output()
+	out, err := sbxCommand(ctx, "ports", name, "--json").Output()
 	if err != nil {
 		return nil
 	}
