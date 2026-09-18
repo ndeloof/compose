@@ -643,15 +643,16 @@ func buildEnvPromptMessage(services map[string]*serviceEnvFindings) string {
 	b.WriteString("interpolated values like \"${VAR}\" are kept symbolic and have already been excluded.\n")
 	for _, name := range sortedMapKeys(services) {
 		f := services[name]
+		// name may be a service or a job: findings.services carries both.
 		if f.hasEnvFile {
-			fmt.Fprintf(&b, "  service %q: env_file declared\n", name)
+			fmt.Fprintf(&b, "  %q: env_file declared\n", name)
 		}
 		if keys := f.sortedSuspiciousKeys(); len(keys) > 0 {
 			quoted := make([]string, len(keys))
 			for i, k := range keys {
 				quoted[i] = strconv.Quote(k)
 			}
-			fmt.Fprintf(&b, "  service %q: literal value for %s\n", name, strings.Join(quoted, ", "))
+			fmt.Fprintf(&b, "  %q: literal value for %s\n", name, strings.Join(quoted, ", "))
 		}
 	}
 	b.WriteString("Use --with-env to silence this prompt and always publish env declarations.\n")
