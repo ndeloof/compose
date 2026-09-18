@@ -279,6 +279,14 @@ func runProject(ctx context.Context, dockerCli command.Cli, backend api.Compose,
 	project, _, err := p.ToProject(ctx, dockerCli, backend, []string{service}, warnUnsupportedAttributes, composecli.WithoutEnvironmentResolution)
 	if err != nil {
 		// The run target may be a job — invisible to the service selector.
+		// Only retry unselected for that specific selection failure: any
+		// other load error (a bad include:, an interpolation error, ...)
+		// would only be duplicated by a second full load — remote include:
+		// fetches and unsupported-attribute warnings included — before
+		// falling through to the same, still correct, error anyway.
+		if !isNoSuchServiceErr(err) {
+			return nil, err
+		}
 		// Reload unselected, materialize the job as a service, and narrow to
 		// it, so the env resolution below sees the job like any selected
 		// service (its env_file resolves; unrelated services' env_file still
@@ -303,6 +311,13 @@ func runProject(ctx context.Context, dockerCli command.Cli, backend api.Compose,
 	// platform resolution and validation happen later through
 	// createOptions.Apply, which runRun always invokes
 	return project, nil
+}
+
+// isNoSuchServiceErr reports whether err is compose-go's selection failure
+// for a service/job name that isn't part of the (possibly narrowed)
+// project — as opposed to any other project-load error.
+func isNoSuchServiceErr(err error) bool {
+	return strings.Contains(err.Error(), "no such service")
 }
 
 func runRun(ctx context.Context, backend api.Compose, project *types.Project, options runOptions, createOpts createOptions, buildOpts buildOptions, dockerCli command.Cli) error {

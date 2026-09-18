@@ -17,6 +17,7 @@
 package compose
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/compose-spec/compose-go/v2/types"
@@ -121,4 +122,16 @@ func TestMaterializeManualJob(t *testing.T) {
 		_, err := materializeManualJob(base(), "rotation")
 		assert.Error(t, err, `job "rotation" is declared with manual: false, it cannot be run manually`)
 	})
+}
+
+// runProject only retries the unselected/full load to look for a job when
+// the narrowed load failed specifically because the target isn't a known
+// service — any other load error (a bad include:, an interpolation
+// error, ...) must not trigger that retry, since it would only duplicate
+// side effects (remote include: fetches, unsupported-attribute warnings)
+// before falling through to the same, unrecoverable error anyway.
+func TestIsNoSuchServiceErr(t *testing.T) {
+	assert.Assert(t, isNoSuchServiceErr(errors.New("no such service: migrate")))
+	assert.Assert(t, !isNoSuchServiceErr(errors.New("interpolation error: bad substitution")))
+	assert.Assert(t, !isNoSuchServiceErr(errors.New("include: remote resource fetch failed")))
 }
