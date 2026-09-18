@@ -51,14 +51,9 @@ func (s *composeService) resolveHookServiceReferences(ctx context.Context, proje
 	if !needs {
 		return nil
 	}
-	containers, err := s.getContainers(ctx, project.Name, oneOffExclude, true)
+	byService, err := s.getContainersByService(ctx, project.Name)
 	if err != nil {
 		return err
-	}
-	byService := map[string]Containers{}
-	for _, ctr := range containers {
-		name := ctr.Labels[api.ServiceLabel]
-		byService[name] = append(byService[name], ctr)
 	}
 	return resolveServiceReferences(hookService, byService)
 }
