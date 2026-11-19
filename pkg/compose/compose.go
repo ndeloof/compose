@@ -37,6 +37,7 @@ import (
 
 	jobsv0 "github.com/docker/compose/v5/internal/jobsapi"
 	"github.com/docker/compose/v5/internal/naming"
+	"github.com/docker/compose/v5/internal/planning"
 	"github.com/docker/compose/v5/internal/progress"
 	"github.com/docker/compose/v5/internal/projectloader"
 	"github.com/docker/compose/v5/internal/registry"
@@ -96,7 +97,7 @@ func NewComposeService(dockerCli command.Cli, options ...Option) (api.Compose, e
 
 	// If custom streams were provided, wrap the Docker CLI to use them
 	if s.outStream != nil || s.errStream != nil || s.inStream != nil {
-		s.dockerCli = s.wrapDockerCliWithStreams(dockerCli)
+		s.dockerCli = s.wrapDockerCliWithStreams(s.dockerCli)
 	}
 
 	return s, nil
@@ -192,6 +193,16 @@ func WithDryRun(s *composeService) error {
 	return nil
 }
 
+// WithPlanObserver registers a function called with the reconciliation plan
+// each time one is prepared, right before it is executed (or, in dry-run mode,
+// simulated). It lets an embedder report what an operation did or would do.
+func WithPlanObserver(observe func(*planning.Plan)) Option {
+	return func(s *composeService) error {
+		s.planObserver = observe
+		return nil
+	}
+}
+
 type Prompt func(message string, defaultValue bool) (bool, error)
 
 // AlwaysOkPrompt returns a Prompt implementation that always returns true without user interaction.
@@ -218,6 +229,8 @@ type composeService struct {
 	navigationMenu NavigationMenuFactory
 	// eventBus collects tasks execution events
 	events api.EventProcessor
+	// planObserver, when set, receives every prepared plan, see WithPlanObserver
+	planObserver func(*planning.Plan)
 
 	// Optional overrides for specific components (for SDK users)
 	outStream   io.Writer

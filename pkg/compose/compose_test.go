@@ -17,6 +17,7 @@
 package compose
 
 import (
+	"io"
 	"testing"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"gotest.tools/v3/assert"
 
+	"github.com/docker/compose/v5/pkg/dryrun"
 	"github.com/docker/compose/v5/pkg/mocks"
 )
 
@@ -89,4 +91,23 @@ func TestWithDryRunKeepsLogLevel(t *testing.T) {
 
 	assert.NilError(t, WithDryRun(&composeService{dockerCli: cli}))
 	assert.Equal(t, logrus.GetLevel(), logrus.TraceLevel)
+}
+
+// TestDryRunSurvivesCustomStreams guards that custom streams wrap the Docker
+// CLI the options left (the dry-run one) and not the one the service was given:
+// the dry run would otherwise act on the real daemon.
+func TestDryRunSurvivesCustomStreams(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	cli := mocks.NewMockCli(mockCtrl)
+	apiClient := mocks.NewMockAPIClient(mockCtrl)
+	// the Docker CLI pings the engine the first time it hands its client out
+	apiClient.EXPECT().Ping(gomock.Any(), gomock.Any()).Return(client.PingResult{}, nil).AnyTimes()
+	cli.EXPECT().Client().Return(apiClient).AnyTimes()
+	cli.EXPECT().CurrentContext().Return("default").AnyTimes()
+	cli.EXPECT().ConfigFile().Return(&configfile.ConfigFile{}).AnyTimes()
+
+	svc, err := NewComposeService(cli, WithOutputStream(io.Discard), WithDryRun)
+	assert.NilError(t, err)
+	_, isDryRun := svc.(*composeService).apiClient().(*dryrun.DryRunClient)
+	assert.Assert(t, isDryRun, "the service must use the dry-run client")
 }

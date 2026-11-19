@@ -1,0 +1,39 @@
+# syntax=docker/dockerfile:1
+
+# Docker-in-Docker image whose daemon runs the Compose reconcile extension.
+#
+# The extension is the Compose binary itself: the daemon launches the file it
+# finds in its extension directory under that file's name, and the binary runs
+# as the extension when it is called io.docker.compose.reconcile.v0
+# (see internal/reconcileext).
+#
+# The base is a daemon built from moby master, which has the extension
+# mechanism (the official docker:dind does not):
+#
+#   docker buildx build -f Dockerfile.reconcile-dind -t compose-reconcile-dind:dev .
+#   docker run -d --privileged -e DOCKER_TLS_CERTDIR= -p 2375:2375 compose-reconcile-dind:dev
+#
+# EXPERIMENTAL: prototype.
+
+# keep in sync with the go directive of go.mod
+ARG GO_VERSION=1.26.11
+ARG BASE=moby-dind:reconcile-base
+# stamped in the version label of the resources the extension creates
+ARG VERSION=0.0.0-reconcile-dev
+
+FROM golang:${GO_VERSION}-alpine AS build
+ARG VERSION
+ENV CGO_ENABLED=0
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY . .
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -trimpath -ldflags "-w -X github.com/docker/compose/v5/internal.Version=${VERSION}" -o /out/io.docker.compose.reconcile.v0 ./cmd
+
+FROM ${BASE}
+# The daemon only loads a regular file (no symlink) that nobody but root can
+# write, in a directory of the same kind: hence COPY, root:root, 0755.
+COPY --from=build --chown=root:root --chmod=0755 /out/io.docker.compose.reconcile.v0 /usr/libexec/docker/moby-extensions/io.docker.compose.reconcile.v0
+RUN chown root:root /usr/libexec/docker/moby-extensions && chmod 0755 /usr/libexec/docker/moby-extensions

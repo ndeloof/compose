@@ -201,6 +201,9 @@ func (s *composeService) preparePlan(ctx context.Context, project *types.Project
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	if s.planObserver != nil {
+		s.planObserver(plan)
+	}
 
 	return project, observed, plan, nil
 }

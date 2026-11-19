@@ -32,6 +32,7 @@ import (
 	"github.com/docker/compose/v5/cmd/formatter"
 	"github.com/docker/compose/v5/cmd/prompt"
 	"github.com/docker/compose/v5/internal"
+	"github.com/docker/compose/v5/internal/reconcileext"
 	"github.com/docker/compose/v5/pkg/compose"
 )
 
@@ -83,6 +84,12 @@ func pluginMain() {
 }
 
 func main() {
+	// the daemon launches the same binary as one of its extensions, under the
+	// name of the extension: nothing else of the CLI runs in that mode
+	if reconcileext.Selected(os.Args) {
+		reconcileext.Main()
+		return
+	}
 	if plugin.RunningStandalone() {
 		os.Args = append([]string{"docker"}, compatibility.Convert(os.Args[1:])...)
 	}
