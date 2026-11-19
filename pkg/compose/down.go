@@ -57,6 +57,9 @@ func limitedDownOp(ctx context.Context, limiter *semaphore.Weighted, fn func() e
 }
 
 func (s *composeService) Down(ctx context.Context, projectName string, options api.DownOptions) error {
+	if s.reconcileExt.enabled {
+		return s.downViaExtension(ctx, projectName, options)
+	}
 	return Run(ctx, func(ctx context.Context) error {
 		return s.down(ctx, strings.ToLower(projectName), options)
 	}, "down", s.events)
