@@ -140,7 +140,7 @@ func (s *composeService) upViaExtension(ctx context.Context, project *types.Proj
 		if err != nil {
 			return err
 		}
-		reply, err := applyReconcile(ctx, rec, applyRequest(project.Name, model, options, s.dryRun))
+		reply, err := applyReconcile(ctx, rec, applyRequest(project, model, options, s.dryRun))
 		if err != nil {
 			return err
 		}
@@ -190,10 +190,12 @@ func removeRequest(projectName string, options api.DownOptions) *reconcilev0.Rem
 	return req
 }
 
-func applyRequest(projectName string, model []byte, options api.UpOptions, dryRun bool) *reconcilev0.ApplyRequest {
+func applyRequest(project *types.Project, model []byte, options api.UpOptions, dryRun bool) *reconcilev0.ApplyRequest {
 	req := &reconcilev0.ApplyRequest{
-		Project:       projectName,
+		Project:       project.Name,
 		Model:         model,
+		WorkingDir:    project.WorkingDir,
+		ConfigFiles:   project.ComposeFiles,
 		Services:      options.Create.Services,
 		Recreate:      reconcileRecreate(options.Create.Recreate),
 		RemoveOrphans: options.Create.RemoveOrphans,

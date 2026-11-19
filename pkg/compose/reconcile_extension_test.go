@@ -144,7 +144,9 @@ func TestUpViaExtensionSendsCanonicalModel(t *testing.T) {
 		Return(client.ImageInspectResult{}, nil).AnyTimes()
 
 	project := &types.Project{
-		Name: "demo",
+		Name:         "demo",
+		WorkingDir:   dir,
+		ComposeFiles: []string{filepath.Join(dir, "compose.yaml"), filepath.Join(dir, "override.yaml")},
 		Services: types.Services{
 			"web": {
 				Name: "web",
@@ -192,6 +194,8 @@ func TestUpViaExtensionSendsCanonicalModel(t *testing.T) {
 	assert.Equal(t, req.Wait, true)
 	assert.Equal(t, req.WaitTimeoutSeconds, int64(90))
 	assert.Equal(t, req.DryRun, false)
+	assert.Equal(t, req.WorkingDir, dir)
+	assert.DeepEqual(t, req.ConfigFiles, project.ComposeFiles)
 
 	// canonical model: no build, files inlined, pull left to the client
 	var model map[string]any
@@ -299,7 +303,7 @@ func TestApplyRequestOptions(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.DeepEqual(t, *applyRequest("p", []byte("m"), tt.options, tt.dryRun), tt.want)
+			assert.DeepEqual(t, *applyRequest(&types.Project{Name: "p"}, []byte("m"), tt.options, tt.dryRun), tt.want)
 		})
 	}
 }
