@@ -249,6 +249,10 @@ type composeService struct {
 	jobsAPI       jobsv0.Jobs
 	jobsAPIErr    error
 
+	// reconcileExt is the daemon's reconcile extension, when `up` and `down`
+	// delegate their reconciliation to it (see WithReconcileExtension).
+	reconcileExt reconcileExtState
+
 	// jobsProbe memoizes the first definitive answer of the jobs probe: the
 	// engine's set of extensions is fixed for the lifetime of its daemon.
 	jobsProbe struct {
@@ -269,6 +273,9 @@ func (s *composeService) Close() error {
 	}
 	if s.jobsExtClient != nil {
 		errs = append(errs, s.jobsExtClient.Close())
+	}
+	if s.reconcileExt.client != nil {
+		errs = append(errs, s.reconcileExt.client.Close())
 	}
 	return errors.Join(errs...)
 }

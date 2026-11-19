@@ -49,6 +49,9 @@ func (s *composeService) Up(ctx context.Context, project *types.Project, options
 	if err := options.Validate(); err != nil {
 		return err
 	}
+	if s.reconcileExt.enabled {
+		return s.upViaExtension(ctx, project, options)
+	}
 	// A dry run has no session to stream logs from: --wait stays the detached plan.
 	detached := options.Start.Attach == nil || (options.Start.Wait && s.dryRun)
 	var created *createdUp

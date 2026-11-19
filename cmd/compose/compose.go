@@ -68,6 +68,10 @@ const (
 	ComposeEnvFiles = "COMPOSE_ENV_FILES"
 	// ComposeMenu defines if the navigation menu should be rendered. Can be also set via --menu
 	ComposeMenu = "COMPOSE_MENU"
+	// ComposeExperimentalReconcileExtension, when truthy, makes `up --detach` and `down` delegate the
+	// reconciliation to the daemon's Compose reconcile extension instead of reconciling client-side.
+	// EXPERIMENTAL: no compatibility promise; modes needing a client session (attach, watch, ...) are refused.
+	ComposeExperimentalReconcileExtension = "COMPOSE_EXPERIMENTAL_RECONCILE_EXTENSION"
 	// ComposeProgress defines type of progress output, if --progress isn't used
 	ComposeProgress = "COMPOSE_PROGRESS"
 )
@@ -559,6 +563,10 @@ func RootCommand(dockerCli command.Cli, backendOptions *BackendOptions) *cobra.C
 			if parallel > 0 {
 				logrus.Debugf("Limiting max concurrency to %d jobs", parallel)
 				backendOptions.Add(compose.WithMaxConcurrency(parallel))
+			}
+
+			if utils.StringToBool(os.Getenv(ComposeExperimentalReconcileExtension)) {
+				backendOptions.Add(compose.WithReconcileExtension)
 			}
 
 			// dry run detection
