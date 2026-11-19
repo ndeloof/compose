@@ -307,6 +307,8 @@ func applyRequestToProto(in *mobyextcontract.ApplyRequest) *ApplyRequest {
 	out.Wait = in.Wait
 	out.WaitTimeoutSeconds = in.WaitTimeoutSeconds
 	out.DryRun = in.DryRun
+	out.WorkingDir = in.WorkingDir
+	out.ConfigFiles = in.ConfigFiles
 	return out
 }
 
@@ -323,6 +325,8 @@ func applyRequestFromProto(in *ApplyRequest) *mobyextcontract.ApplyRequest {
 	out.Wait = in.GetWait()
 	out.WaitTimeoutSeconds = in.GetWaitTimeoutSeconds()
 	out.DryRun = in.GetDryRun()
+	out.WorkingDir = in.GetWorkingDir()
+	out.ConfigFiles = in.GetConfigFiles()
 	return out
 }
 

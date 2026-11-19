@@ -111,6 +111,14 @@ type ApplyRequest struct {
 	WaitTimeoutSeconds int64 `pb:"7"`
 	// DryRun reports the plan without applying it.
 	DryRun bool `pb:"8"`
+	// WorkingDir is the project directory on the client, recorded in the
+	// com.docker.compose.project.working_dir label. Only the client knows it.
+	// Empty leaves the label unset.
+	WorkingDir string `pb:"9"`
+	// ConfigFiles are the Compose files the model comes from, on the client,
+	// recorded in the com.docker.compose.project.config_files label. Only the
+	// client knows them. Empty leaves the label unset.
+	ConfigFiles []string `pb:"10"`
 }
 
 // ApplyReply reports what the convergence did, or would do with DryRun.

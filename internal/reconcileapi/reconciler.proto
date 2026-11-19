@@ -52,6 +52,8 @@ message ApplyRequest {
   bool wait = 6;
   int64 wait_timeout_seconds = 7;
   bool dry_run = 8;
+  string working_dir = 9;
+  repeated string config_files = 10;
 }
 
 message Refusal {

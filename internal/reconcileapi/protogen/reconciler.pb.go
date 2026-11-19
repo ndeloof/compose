@@ -180,6 +180,8 @@ type ApplyRequest struct {
 	Wait               bool                   `protobuf:"varint,6,opt,name=wait,proto3" json:"wait,omitempty"`
 	WaitTimeoutSeconds int64                  `protobuf:"varint,7,opt,name=wait_timeout_seconds,json=waitTimeoutSeconds,proto3" json:"wait_timeout_seconds,omitempty"`
 	DryRun             bool                   `protobuf:"varint,8,opt,name=dry_run,json=dryRun,proto3" json:"dry_run,omitempty"`
+	WorkingDir         string                 `protobuf:"bytes,9,opt,name=working_dir,json=workingDir,proto3" json:"working_dir,omitempty"`
+	ConfigFiles        []string               `protobuf:"bytes,10,rep,name=config_files,json=configFiles,proto3" json:"config_files,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -268,6 +270,20 @@ func (x *ApplyRequest) GetDryRun() bool {
 		return x.DryRun
 	}
 	return false
+}
+
+func (x *ApplyRequest) GetWorkingDir() string {
+	if x != nil {
+		return x.WorkingDir
+	}
+	return ""
+}
+
+func (x *ApplyRequest) GetConfigFiles() []string {
+	if x != nil {
+		return x.ConfigFiles
+	}
+	return nil
 }
 
 type Refusal struct {
@@ -576,7 +592,7 @@ const file_internal_reconcileapi_reconciler_proto_rawDesc = "" +
 	"\n" +
 	"ApplyReply\x12H\n" +
 	"\x05steps\x18\x01 \x03(\v22.io.docker.compose.extension.reconcile.api.v0.StepR\x05steps\x12V\n" +
-	"\bservices\x18\x02 \x03(\v2:.io.docker.compose.extension.reconcile.api.v0.ServiceStateR\bservices\"\xfc\x01\n" +
+	"\bservices\x18\x02 \x03(\v2:.io.docker.compose.extension.reconcile.api.v0.ServiceStateR\bservices\"\xc0\x02\n" +
 	"\fApplyRequest\x12\x18\n" +
 	"\aproject\x18\x01 \x01(\tR\aproject\x12\x14\n" +
 	"\x05model\x18\x02 \x01(\fR\x05model\x12\x1a\n" +
@@ -585,7 +601,11 @@ const file_internal_reconcileapi_reconciler_proto_rawDesc = "" +
 	"\x0eremove_orphans\x18\x05 \x01(\bR\rremoveOrphans\x12\x12\n" +
 	"\x04wait\x18\x06 \x01(\bR\x04wait\x120\n" +
 	"\x14wait_timeout_seconds\x18\a \x01(\x03R\x12waitTimeoutSeconds\x12\x17\n" +
-	"\adry_run\x18\b \x01(\bR\x06dryRun\"5\n" +
+	"\adry_run\x18\b \x01(\bR\x06dryRun\x12\x1f\n" +
+	"\vworking_dir\x18\t \x01(\tR\n" +
+	"workingDir\x12!\n" +
+	"\fconfig_files\x18\n" +
+	" \x03(\tR\vconfigFiles\"5\n" +
 	"\aRefusal\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x16\n" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\"W\n" +
