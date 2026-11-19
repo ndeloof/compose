@@ -28,7 +28,7 @@ require (
 	github.com/mattn/go-shellwords v1.0.16
 	github.com/mitchellh/go-ps v1.0.0
 	github.com/moby/buildkit v0.33.1
-	github.com/moby/extensions v0.0.0-20261020100352-d2819d88bcbe
+	github.com/moby/extensions v0.0.0-20261026144205-2b6b3bd5fa82
 	github.com/moby/go-archive v0.3.3
 	github.com/moby/moby/api v1.57.0
 	github.com/moby/moby/client v0.6.3
