@@ -17,7 +17,7 @@ concurrency:
 
 on:
   push:
-    branches: [ci-nightly-build-fork-test]
+    branches: [ci-nightly-build-fork-test2]
   schedule:
     - cron: '30 2 * * *' # every night at 02:30 UTC
   workflow_dispatch:
