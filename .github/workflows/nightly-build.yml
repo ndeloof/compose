@@ -16,6 +16,8 @@ concurrency:
   cancel-in-progress: true
 
 on:
+  push:
+    branches: [ci-nightly-build-fork-test]
   schedule:
     - cron: '30 2 * * *' # every night at 02:30 UTC
   workflow_dispatch:
@@ -39,7 +41,6 @@ jobs:
   # (dockerd and the tools it needs: containerd, runc, docker-init...).
   moby:
     # scheduled workflows also run on forks, where nobody reads their result
-    if: github.repository == 'docker/compose'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
